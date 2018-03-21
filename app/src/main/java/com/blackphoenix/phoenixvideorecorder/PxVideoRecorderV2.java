@@ -51,6 +51,7 @@ public class PxVideoRecorderV2 implements SurfaceHolder.Callback {
     private boolean isDebug = false;
 
     private PxCameraListener mVideoRecordingListener;
+    private PxVideoRecorderDebugListener mDebugListener;
 
     public PxVideoRecorderV2(Context context){
         this(context,null);
@@ -64,6 +65,10 @@ public class PxVideoRecorderV2 implements SurfaceHolder.Callback {
 
     public void setCameraListener(PxCameraListener pxCameraListener){
         this.mVideoRecordingListener = pxCameraListener;
+    }
+
+    public void addDebugListener(PxVideoRecorderDebugListener listener){
+        this.mDebugListener = listener;
     }
 
     public void setVideoFrame(FrameLayout frame){
@@ -445,8 +450,14 @@ public class PxVideoRecorderV2 implements SurfaceHolder.Callback {
     }
 
     private void debugLog(String message){
-        if(isDebug)
-            ILog.print(LOG_TITLE,""+message);
+        if(isDebug) {
+            ILog.print(LOG_TITLE, message);
+        }
+
+        if(mDebugListener!=null){
+            mDebugListener.debugLog(LOG_TITLE,""+message);
+        }
+
     }
 }
 
