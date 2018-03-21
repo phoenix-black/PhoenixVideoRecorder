@@ -8,6 +8,7 @@ import android.view.SurfaceHolder;
 import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
+
 import com.blackphoenix.phoenixwidgets.ILog;
 
 import java.io.File;
@@ -17,38 +18,40 @@ import java.util.Date;
 import java.util.Locale;
 
 /**
- * Created by w on 07-11-2016.
+ * Created by Praba on 07-11-2016.
+ *  ToDo : Add the message as String Resources and Add the Language Support
+ *
  */
 
 public class PxVideoRecorder implements SurfaceHolder.Callback {
 
-    Context mContext;
+    private static String LOG_TITLE = PxVideoRecorder.class.getSimpleName();
+
+    public static String E_MEDIA_RECORDER_CAMERA_INIT = "E0511";
+    public static String E_PREPARE_VIDEO_FILE_FAILED = "E0512";
+    public static String E_RECORDER_SET_PREVIEW_DISP_FAILED = "E0513";
+    public static String E_PREPARE_M_RECORDER_STAE_ERROR = "E0514";
+    public static String E_PREPARE_M_RECORDER_IO_ERROR = "E0515";
+    public static String E_INIT_CAMERA_INSTANCE_FAILED = "E0516";
+    public static String E_CAMERA_SET_PREVIEW_DISP_FAILED = "E0517";
+
+    private Context mContext;
     private SurfaceHolder surfaceHolder;
-    public MediaRecorder mediaRecorder;
-    public VideoSurfaceView surfaceView;
+    private MediaRecorder mediaRecorder;
+    private VideoSurfaceView surfaceView;
     private Camera mCamera;
     private FrameLayout mVideoFrame;
 
-   // public Semaphore semRecording  = new Semaphore(1,true);
-
-    //private File deviceHomeDir = Environment.getExternalStorageDirectory();
-  /*  private String appDir = "/hoyo/";*/
     private final int MIN_RECORD_TIME = 5000;
     private String mVideoFolderName;
     private File mRecordedVideoFile;
-    /*    private String videoRecordPath;*/
-    //private int videoRecordTime = 10000; // 10 seconds
-    public boolean mRecordStatus = false;
-    public boolean mediaRecorderStatus = false;
-    private boolean cameraStatus = false;
+
+    private boolean mRecordStatus = false;
+    private boolean mediaRecorderStatus = false;
+    private boolean isDebug = false;
 
     private PxCameraListener mVideoRecordingListener;
-
-    public class Parameters {
-        int width;
-        int height;
-        int folderName;
-    }
+    private PxVideoRecorderDebugListener mDebugListener;
 
     public PxVideoRecorder(Context context){
         this(context,null);
@@ -64,12 +67,20 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
         this.mVideoRecordingListener = pxCameraListener;
     }
 
+    public void addDebugListener(PxVideoRecorderDebugListener listener){
+        this.mDebugListener = listener;
+    }
+
     public void setVideoFrame(FrameLayout frame){
         this.mVideoFrame = frame;
     }
 
     public void setVideoFolderName(String name){
         this.mVideoFolderName = name;
+    }
+
+    public void setDebugEnabled(boolean status){
+        this.isDebug = status;
     }
 
     private void setupCamera(){
@@ -81,7 +92,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             // ToDO remove view once recording is done
             mVideoFrame.addView(surfaceView);
         }
-        ILog.print("VRec","Camera Setup Done");
+        debugLog("Camera Setup Done");
     }
 
     /*
@@ -94,7 +105,9 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
         if(mCamera == null){
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingError("Camera Initialization Failed");
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occurred","Media Recorder Setup Failed! Camera object is Null",E_MEDIA_RECORDER_CAMERA_INIT);
+
+            return null;
         }
 
         MediaRecorder localMediaRecorder = new MediaRecorder();
@@ -123,13 +136,13 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             }
 
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingInterrupted("Unable to Create Video File!\n"+e.toString());
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occurred","Unable to Create Video File!\n"+e.toString(),E_PREPARE_VIDEO_FILE_FAILED);
             return null;
         }
 
         localMediaRecorder.setOutputFile(mRecordedVideoFile.getAbsolutePath());
 
-        ILog.print("VRec","Recorder Configuration Done");
+        debugLog("Recorder Configuration Done");
 
         try {
             localMediaRecorder.setPreviewDisplay(surfaceHolder.getSurface());
@@ -141,7 +154,9 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             }
 
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingInterrupted("RunTimeException : "+e.toString());
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occurred","RunTimeException : "+e.toString(), E_RECORDER_SET_PREVIEW_DISP_FAILED);
+
+            return null;
         }
 
         try {
@@ -156,7 +171,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
             e.printStackTrace();
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingInterrupted("Exception Occurred "+e.toString());
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occurred","Exception Occurred "+e.toString(), E_PREPARE_M_RECORDER_STAE_ERROR);
             return null;
         } catch (IOException e) {
             localMediaRecorder.release();
@@ -168,10 +183,10 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
             e.printStackTrace();
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingInterrupted("Exception Occurred "+e.toString());
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occurred","Exception Occurred "+e.toString(),E_PREPARE_M_RECORDER_IO_ERROR);
             return null;
         }
-        ILog.print("VRec","Media Recorder Setup Done");
+        debugLog("Media Recorder Setup Done");
 
         return localMediaRecorder;
     }
@@ -194,7 +209,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
         File f = new File(videoRecordPath);
 
         if(f.isDirectory()) {
-            ILog.print("VRec","Is Directory "+videoRecordPath);
+            debugLog("Is Directory "+videoRecordPath);
         } else {
             if(!f.exists()) {
                 if(!f.mkdirs()) {
@@ -215,12 +230,12 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             throw new VideoRecorderException("Unable to Create Video Directory"+tempVideoFile.getAbsolutePath() +"ERROR: "+e.toString());
         }
 
-        ILog.print("VRec","Video File Prepared");
+        debugLog("Video File Prepared");
 
         return tempVideoFile;
     }
 
-    public String getCurrentDataTimeString(){
+    private String getCurrentDataTimeString(){
         SimpleDateFormat simpleDateFormat =
                 new SimpleDateFormat("MMddyyhhmss", Locale.getDefault());
         return simpleDateFormat.format(new Date());
@@ -233,11 +248,11 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
     private Runnable stopRecordingRunnable = new Runnable() {
         @Override
         public void run() {
-            ILog.print("VRec","Recording Finished");
+            debugLog("Recording Finished");
             mRecordStatus = true;
             if(mVideoRecordingListener!=null)
                 mVideoRecordingListener.setOutputFile(mRecordedVideoFile);
-            StopRecording();
+            finishRecording();
         }
     };
 
@@ -252,48 +267,35 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
     public void startRecording(int mSeconds, String folderName){
 
-        this.setVideoFolderName(folderName);
+        this.mVideoFolderName =folderName;
 
         if(mSeconds<=MIN_RECORD_TIME){
             mSeconds = MIN_RECORD_TIME;
         }
 
         this.setupCamera();
+    }
 
-        if(mCamera == null) {
-            try {
-                mCamera = getCameraInstance();
-            } catch (VideoRecorderException e){
-                ILog.print("VRec_E","No Camera Instance Available "+e.toString());
-                if(mVideoRecordingListener!=null){
-                    mVideoRecordingListener.recordingError(e.toString());
-                }
-
-                if(mVideoFrame!=null){
-                    mVideoFrame.removeView(surfaceView);
-                }
-
-                return;
-            }
-        }
-
+    private void start(int mSeconds){
         mediaRecorder = this.setupMediaRecorder();
 
         if(mediaRecorder == null){
 
-            if(mVideoFrame!=null){
+            // ToDo Commented this for experimentation
+            /*if(mVideoFrame!=null){
                 mVideoFrame.removeView(surfaceView);
-            }
+            }*/
 
+            /* Already Handled
             if(mVideoRecordingListener!=null)
-                mVideoRecordingListener.recordingInterrupted("MediaRecorder setup initialize Failed");
+                mVideoRecordingListener.recordingInterrupted("Internal Error has Occcurred","MediaRecorder setup initialize Failed");*/
             return;
         }
 
         mediaRecorder.start();
         mediaRecorderStatus = true;
 
-        ILog.print("VRec","Record Started");
+        debugLog("Record Started");
 
         if(mVideoRecordingListener!=null)
             mVideoRecordingListener.recordingStarted();
@@ -305,15 +307,15 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
         Handler handler = new Handler();
         handler.postDelayed(stopRecordingRunnable,mSeconds);
 
-        ILog.print("VRec","Recorder Started");
+        debugLog("Recorder Started");
     }
 
     /*
     * Stop Recording
      */
 
-    private void StopRecording() {
-        ILog.print("VRec","Recording Stopped");
+    private void finishRecording() {
+        debugLog("Recording Stopped");
         if(mediaRecorder != null) {
 
             if(mediaRecorderStatus) {
@@ -322,7 +324,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             mediaRecorder.release();
             mediaRecorder = null;
             mediaRecorderStatus = false;
-            ILog.print("VRec","mediaRecorder stopped");
+            debugLog("mediaRecorder stopped");
         }
 
         if(mVideoFrame!=null){
@@ -331,6 +333,10 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
         if(mVideoRecordingListener!=null)
             mVideoRecordingListener.setRecordingFinished();
+    }
+
+    private void stopRecordingOnError(String errorMessage){
+
     }
 
      /*
@@ -345,7 +351,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             surfaceHolder.removeCallback(this);
             mCamera.release();
             mCamera = null;
-            ILog.print("VRec", "Camera stopped");
+            debugLog( "Camera stopped");
 
         }
     }
@@ -355,7 +361,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
      */
 
     private void Destroy() {
-        ILog.print("VRec","Recording Destroy");
+        debugLog("Recording Destroy");
         if(mediaRecorder != null) {
             mediaRecorder.reset();
             mediaRecorder.release();
@@ -370,7 +376,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             return Camera.open();
         } catch (Exception e) {
             e.printStackTrace();
-            ILog.print("VRec", "Error Exception" + e);
+            debugLog("Error Exception" + e);
             throw new VideoRecorderException("UYnable to Open Camera!\n"+e.toString());
         }
     }
@@ -392,13 +398,13 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
     @Override
     public void surfaceCreated(SurfaceHolder surfaceHolder) {
-        ILog.print("VRec","SurFace Created");
+        debugLog("SurFace Created");
         if(mCamera == null) {
             try {
                 mCamera = getCameraInstance();
             } catch (VideoRecorderException e){
                 if(mVideoRecordingListener!=null){
-                    mVideoRecordingListener.recordingError(e.toString());
+                    mVideoRecordingListener.recordingError("Internal Error has Occurred",e.toString(),E_INIT_CAMERA_INSTANCE_FAILED);
                 }
                 return;
             }
@@ -410,20 +416,22 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
         } catch (IOException e) {
             e.printStackTrace();
             if(mVideoRecordingListener!=null){
-                mVideoRecordingListener.recordingError(e.toString());
+                mVideoRecordingListener.recordingError("Internal Error has Occurred",e.toString(),E_CAMERA_SET_PREVIEW_DISP_FAILED);
             }
         }
+
+        start(MIN_RECORD_TIME);
 
     }
 
     @Override
     public void surfaceChanged(SurfaceHolder surfaceHolder, int i, int i2, int i3) {
-        ILog.print("VRec","SurFace Changed");
+        debugLog("SurFace Changed");
     }
 
     @Override
     public void surfaceDestroyed(SurfaceHolder surfaceHolder) {
-        ILog.print("VRec","Surface Destroyed");
+        debugLog("Surface Destroyed");
 
         this.surfaceHolder.removeCallback(this);
 
@@ -439,6 +447,17 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             mCamera.release();
             mCamera = null;
         }
+    }
+
+    private void debugLog(String message){
+        if(isDebug) {
+            ILog.print(LOG_TITLE, message);
+        }
+
+        if(mDebugListener!=null){
+            mDebugListener.debugLog(LOG_TITLE,""+message);
+        }
+
     }
 }
 
