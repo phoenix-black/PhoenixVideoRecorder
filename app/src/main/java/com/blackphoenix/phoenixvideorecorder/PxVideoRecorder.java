@@ -42,7 +42,8 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
     private Camera mCamera;
     private FrameLayout mVideoFrame;
 
-    private final int MIN_RECORD_TIME = 5000;
+    private final int MIN_RECORD_DURATION = 5000;
+    private int mVideoRecordDuration;
     private String mVideoFolderName;
     private File mRecordedVideoFile;
 
@@ -269,9 +270,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
 
         this.mVideoFolderName =folderName;
 
-        if(mSeconds<=MIN_RECORD_TIME){
-            mSeconds = MIN_RECORD_TIME;
-        }
+        mVideoRecordDuration = (mSeconds <=MIN_RECORD_DURATION)?MIN_RECORD_DURATION:mSeconds;
 
         this.setupCamera();
     }
@@ -420,7 +419,7 @@ public class PxVideoRecorder implements SurfaceHolder.Callback {
             }
         }
 
-        start(MIN_RECORD_TIME);
+        start(mVideoRecordDuration);
 
     }
 
