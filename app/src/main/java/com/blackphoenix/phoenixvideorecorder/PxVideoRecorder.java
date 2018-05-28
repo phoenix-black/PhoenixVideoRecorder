@@ -9,7 +9,7 @@ import android.view.SurfaceView;
 import android.widget.FrameLayout;
 
 
-import com.blackphoenix.phoenixwidgets.ILog;
+import com.blackphoenix.phoenixutils.ILog;
 
 import java.io.File;
 import java.io.IOException;
